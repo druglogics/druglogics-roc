@@ -1,0 +1,98 @@
+---
+title: "Generate ROC curve from Ensemble Wise Synergy file(s)"
+author: "[John Zobolas](https://github.com/bblodfon)"
+output:
+  html_document:
+    df_print: paged
+    theme: united
+---
+
+# Intro 
+
+With this code we can **generate a ROC curve** from one or two ensemble wise 
+synergy files, which is one of the output results of the druglogics pipeline 
+module `drabme`.
+
+# Input
+
+**Input files** that are needed in order to generate the ROC curve are:  
+- At least one ensemble wise synergy result file (id: `ensemble`)
+- One observed synergies file (id: `observed_synergies`) to test against the 
+synergies found from the `drabme` simulation(s)
+
+Check in the `input/` dir for example files and their format.
+
+```{r Input and validation}
+# Set the working directory to the druglogics-roc-generator folder: 
+# setwd("pathTo/druglogics-roc-generator")
+
+input.dir = paste0(getwd(), '/input')
+input.files = list.files(input.dir, full.names = TRUE)
+ensemble.files = input.files[grepl("ensemble", input.files)]
+observed.synergies.file = input.files[grepl("observed_synergies", input.files)]
+
+# some file checks
+stopifnot(length(ensemble.files) == 1 | length(ensemble.files) == 2)
+stopifnot(length(observed.synergies.file) == 1)
+
+# load ensemble wise synergy file(s)
+ensemble.res = list()
+for (i in seq_along(ensemble.files)) {
+  ensemble.response = 
+    read.table(file = ensemble.files[[i]], sep = "\t", 
+               col.names = c("perturbation", "response.excess.over.subset"),
+               stringsAsFactors = FALSE)
+  ensemble.response$perturbation = 
+    gsub("\\[|\\]", "", ensemble.response$perturbation)
+  ensemble.res[[i]] = ensemble.response
+}
+
+# load observed synergies file
+lines = readLines(observed.synergies.file)
+observed.synergies = gsub("~", "-", lines)
+
+# check that the observed synergies are all part of the perturbations tested
+for (ensemble.response in ensemble.res) {
+  stopifnot(all(observed.synergies %in% ensemble.response$perturbation))
+}
+```
+
+# Normalization
+
+In case of more than one ensemble synergies file, normalization of the 
+combined ensemble wise synergy results needs to be done. There are several 
+methods to achieve this and here we provide a few choices:
+
+- Fold-change
+- Log2 fold change
+- Exponential product
+
+```{r Normalization}
+# check that ENTITYA, ENTITYB, EFFECT columns are not empty for any interaction
+entity.A = entries["ENTITYA"]
+entity.B = entries["ENTITYB"]
+effect = entries["EFFECT"] # inhibit or activate
+
+causal.entries = cbind(entity.A, entity.B, effect)
+  
+stopifnot(all(sum(entity.A != "")))
+stopifnot(all(sum(entity.B != "")))
+stopifnot(all(sum(effect != "")))
+
+# add effect annotation
+effect.annot = apply(causal.entries, 1, function(entry) {
+  if (entry[3] == "activate") return("->")
+  else if (entry[3] == "inhibit") return("-|")
+  else stop("effect column value is neither activate nor inhibit")
+})
+
+causal.entries = cbind(causal.entries, effect.annot)
+
+# remove EFFECT column
+causal.entries = causal.entries[c("ENTITYA","effect.annot","ENTITYB")]
+
+# output to file (seperator: space)
+topology.file = "cascade_topology.sif"
+write.table(x = causal.entries, file = topology.file, quote = FALSE, 
+            col.names = FALSE, row.names = FALSE, sep = " ")
+```
