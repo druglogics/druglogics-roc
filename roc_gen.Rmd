@@ -1,10 +1,13 @@
 ---
-title: "Generate ROC curve from Ensemble Wise Synergy file(s)"
+title: "Druglogics ROC curve Generator"
 author: "[John Zobolas](https://github.com/bblodfon)"
 output:
   html_document:
     df_print: paged
     theme: united
+    toc: true
+    toc_float: true
+runtime: shiny
 ---
 
 # Intro 
@@ -13,89 +16,109 @@ With this code we can **generate a ROC curve** from one or two ensemble wise
 synergy files, which is one of the output results of the druglogics pipeline 
 module `drabme`.
 
-# Input
+# Prerequisites
 
-**Input files** that are needed in order to generate the ROC curve are:  
-- At least one ensemble wise synergy result file (id: `ensemble`)
-- One observed synergies file (id: `observed_synergies`) to test against the 
-synergies found from the `drabme` simulation(s)
+```{r Load libraries and functions, message = FALSE}
+library(shiny) # 1.2.0
+source("useful_fun.R") # loads `dplyr`
+```
 
-Check in the `input/` dir for example files and their format.
+# Example Input
 
+**Input files** that are needed in order to generate the ROC curve are:
+
+- At least **one ensemble-wise synergy** result file
+  - In case of two such files, the second is used for normalizing the results 
+  of the first through various methods
+- One **observed synergies file** to test against the synergies found from the 
+`drabme` simulation(s)
+
+Check in the `input/` dir for example files and their format.  
+In the next section we show how to create a combined `predictions` object:
 ```{r Input and validation}
 # Set the working directory to the druglogics-roc-generator folder: 
 # setwd("pathTo/druglogics-roc-generator")
 
 input.dir = paste0(getwd(), '/input')
-input.files = list.files(input.dir, full.names = TRUE)
-ensemble.files = input.files[grepl("ensemble", input.files)]
-observed.synergies.file = input.files[grepl("observed_synergies", input.files)]
-
-# some file checks
-stopifnot(length(ensemble.files) == 1 | length(ensemble.files) == 2)
-stopifnot(length(observed.synergies.file) == 1)
-
-# load ensemble wise synergy file(s)
-res.list = list()
-for (i in seq_along(ensemble.files)) {
-  res = read.table(file = ensemble.files[[i]], sep = "\t", 
-                   col.names = c("perturbation", "response.excess.over.subset"),
-                   stringsAsFactors = FALSE)
-  res$perturbation = gsub("\\[|\\]", "", res$perturbation)
-  res.list[[i]] = res
-}
-
-# check in case of two ensemble synergy files
-# that the same perturbations were tested (and in the same order)
-if (length(res.list) == 2) 
-  stopifnot(all(res.list[[1]]$perturbation == res.list[[2]]$perturbation))
+original.file = paste0(input.dir, "/ensemble_synergies")
+random.file = paste0(input.dir, "/ensemble_synergies_random")
+observed.synergies.file = paste0(input.dir, "/observed_synergies")
 
 # load observed synergies file
 lines = readLines(observed.synergies.file)
 observed.synergies = gsub("~", "-", lines)
 
+orig.res = read.ensemble.synergies.drame.file(original.file)
+rand.res = read.ensemble.synergies.drame.file(random.file)
+
+check.perturbations(orig.res$perturbation, rand.res$perturbation)
+perturbations = orig.res$perturbation
+
 # check that the observed synergies are all part of the perturbations tested
-for (res in res.list) {
-  stopifnot(all(observed.synergies %in% res$perturbation))
-}
+stopifnot(all(observed.synergies %in% perturbations))
+
+# create observed column
+observed = sapply(perturbations %in% observed.synergies, as.numeric)
+
+# combine results
+predictions = cbind.data.frame(perturbations, observed, orig.res$score, 
+                                 rand.res$score, stringsAsFactors = FALSE)
+colnames(predictions) = c("perturbation", "observed", "original", "random")
+```
+
+Get a glimpse of the `predictions` data:
+```{r, echo = FALSE}
+numericInput("rows", "How many rows to show?", 5)
+
+renderTable({
+  head(predictions, input$rows)
+}, digits = 7)
 ```
 
 # Normalization
 
-In case of more than one ensemble synergies file, normalization of the 
-combined ensemble wise synergy results needs to be done. There are several 
-methods to achieve this and here we provide a few choices:
+In order to generate ROC curves some scaling/normalization of the single and/or 
+combined ensemble wise synergy score results needs to be done. The main methods 
+used are:
 
-- Fold-change
-- Log2 fold change
-- Exponential product
+- Single exponentation
+  - **exp-orig**: $original\Rightarrow exp(original)$
+  - **exp-rand**: $random\Rightarrow exp(random)$
+- Combined exponentation
+  - **exp-prod-norm**: $orig\cdot rand\Rightarrow exp(orig)\cdot exp(rand)=exp(orig+rand)$
+  - **exp-fold-change-norm**: $orig/ rand\Rightarrow exp(orig)/ exp(rand)=exp(orig-rand)$
 
-```{r Normalization}
-# check that ENTITYA, ENTITYB, EFFECT columns are not empty for any interaction
-entity.A = entries["ENTITYA"]
-entity.B = entries["ENTITYB"]
-effect = entries["EFFECT"] # inhibit or activate
+# Create ROC Curve
 
-causal.entries = cbind(entity.A, entity.B, effect)
-  
-stopifnot(all(sum(entity.A != "")))
-stopifnot(all(sum(entity.B != "")))
-stopifnot(all(sum(effect != "")))
+Choose a normalization method and input files to compute the necessary confusion 
+matrix values per threshold value and draw the ROC curve:
+```{r, echo = FALSE}
+# Input section
+selectInput(inputId = "method", label = "Select Method", 
+            choices = c("Original", "Random", "exp-orig", "exp-rand", 
+                        "exp-prod-norm", "exp-fold-change-norm"))
 
-# add effect annotation
-effect.annot = apply(causal.entries, 1, function(entry) {
-  if (entry[3] == "activate") return("->")
-  else if (entry[3] == "inhibit") return("-|")
-  else stop("effect column value is neither activate nor inhibit")
+fileInput(inputId = "original.file", label = "Select Original Ensemble Synergies File", 
+          buttonLabel = "Browse...", placeholder = "No file selected")
+fileInput(inputId = "random.file", label = "Select Random Ensemble Synergies File", 
+          buttonLabel = "Browse...", placeholder = "No file selected")
+fileInput(inputId = "observed.synergies.file", label = "Select Observed Synergies File", 
+          buttonLabel = "Browse...", placeholder = "No file selected")
+
+# drawing section
+renderPrint({
+  method = input$method
+  print(method)
+  if (is.null(input$original.file) & is.null(input$random.file)){
+    print("Files not yet selected - taking example file from /input")
+    
+  } else {
+    # remake predictions object based on input files
+  }
 })
 
-causal.entries = cbind(causal.entries, effect.annot)
+#pre = arrange(predictions, !!method)
+#thres.values = select(predictions, exp.prod.norm)
 
-# remove EFFECT column
-causal.entries = causal.entries[c("ENTITYA","effect.annot","ENTITYB")]
 
-# output to file (seperator: space)
-topology.file = "cascade_topology.sif"
-write.table(x = causal.entries, file = topology.file, quote = FALSE, 
-            col.names = FALSE, row.names = FALSE, sep = " ")
 ```
