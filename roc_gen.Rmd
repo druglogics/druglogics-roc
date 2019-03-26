@@ -10,9 +10,9 @@ output:
 runtime: shiny
 ---
 
-# Intro 
+# Intro
 
-With this code we can **generate a ROC curve** from one or two ensemble wise 
+With this code we can **generate a ROC curve** from one or two ensemble-wise 
 synergy files, which is one of the output results of the druglogics pipeline 
 module `drabme`.
 
@@ -34,7 +34,8 @@ source("useful_fun.R") # loads `dplyr`
 `drabme` simulation(s)
 
 Check in the `input/` dir for example files and their format.  
-In the next section we show how to create a combined `predictions` object:
+In the next section we show how to create a combined `predictions` object from
+such files:
 ```{r Input and validation}
 # Set the working directory to the druglogics-roc-generator folder: 
 # setwd("pathTo/druglogics-roc-generator")
@@ -44,81 +45,89 @@ original.file = paste0(input.dir, "/ensemble_synergies")
 random.file = paste0(input.dir, "/ensemble_synergies_random")
 observed.synergies.file = paste0(input.dir, "/observed_synergies")
 
-# load observed synergies file
-lines = readLines(observed.synergies.file)
-observed.synergies = gsub("~", "-", lines)
-
+# load files
+observed.synergies = get.observed.synergies(observed.synergies.file)
 orig.res = read.ensemble.synergies.drame.file(original.file)
 rand.res = read.ensemble.synergies.drame.file(random.file)
 
-check.perturbations(orig.res$perturbation, rand.res$perturbation)
-perturbations = orig.res$perturbation
-
-# check that the observed synergies are all part of the perturbations tested
-stopifnot(all(observed.synergies %in% perturbations))
-
-# create observed column
-observed = sapply(perturbations %in% observed.synergies, as.numeric)
-
-# combine results
-predictions = cbind.data.frame(perturbations, observed, orig.res$score, 
-                                 rand.res$score, stringsAsFactors = FALSE)
-colnames(predictions) = c("perturbation", "observed", "original", "random")
+data.validation(orig.res, rand.res, observed.synergies)
+predictions.example = 
+  create.predictions.data.frame(orig.res, rand.res, observed.synergies)
 ```
 
+You can of course use the rest of the code if you can create a `predictions` 
+object yourself (with at least one of the `original` or `random` columns).  
 Get a glimpse of the `predictions` data:
 ```{r, echo = FALSE}
 numericInput("rows", "How many rows to show?", 5)
 
 renderTable({
-  head(predictions, input$rows)
+  head(predictions.example, n = input$rows)
 }, digits = 7)
 ```
 
-# Normalization
+# Scaling/Normalization
 
 In order to generate ROC curves some scaling/normalization of the single and/or 
-combined ensemble wise synergy score results needs to be done. The main methods 
+combined ensemble-wise synergy score results needs to be done. The main methods 
 used are:
 
-- Single exponentation
+- Single exponentation (scaling)
   - **exp-orig**: $original\Rightarrow exp(original)$
   - **exp-rand**: $random\Rightarrow exp(random)$
-- Combined exponentation
+- Combined exponentation (normalization)
   - **exp-prod-norm**: $orig\cdot rand\Rightarrow exp(orig)\cdot exp(rand)=exp(orig+rand)$
   - **exp-fold-change-norm**: $orig/ rand\Rightarrow exp(orig)/ exp(rand)=exp(orig-rand)$
 
 # Create ROC Curve
 
-Choose a normalization method and input files to compute the necessary confusion 
-matrix values per threshold value and draw the ROC curve:
+Choose a normalization method and input files (at least one drabme file is 
+needed, otherwise the example input is used from above) to draw the ROC curve:
 ```{r, echo = FALSE}
 # Input section
 selectInput(inputId = "method", label = "Select Method", 
-            choices = c("Original", "Random", "exp-orig", "exp-rand", 
+            choices = c("original", "random", "exp-orig", "exp-rand", 
                         "exp-prod-norm", "exp-fold-change-norm"))
 
-fileInput(inputId = "original.file", label = "Select Original Ensemble Synergies File", 
+fileInput(inputId = "observed", label = "Select Observed Synergies File", 
           buttonLabel = "Browse...", placeholder = "No file selected")
-fileInput(inputId = "random.file", label = "Select Random Ensemble Synergies File", 
+fileInput(inputId = "orig", label = "Select Original Ensemble Synergies File", 
           buttonLabel = "Browse...", placeholder = "No file selected")
-fileInput(inputId = "observed.synergies.file", label = "Select Observed Synergies File", 
+fileInput(inputId = "rand", label = "Select Random Ensemble Synergies File", 
           buttonLabel = "Browse...", placeholder = "No file selected")
 
 # drawing section
-renderPrint({
+renderPlot({
+  # take input
   method = input$method
-  print(method)
-  if (is.null(input$original.file) & is.null(input$random.file)){
-    print("Files not yet selected - taking example file from /input")
+  observed.synergies.file = input$observed$datapath
+  original.file = input$orig$datapath
+  random.file = input$rand$datapath
+  
+  # decide on the `predictions` object
+  if (!is.null(observed.synergies.file) & (!is.null(original.file) | 
+                                           !is.null(random.file))) {
+    # we generate new `predictions`
+    observed.synergies = get.observed.synergies(observed.synergies.file)
+    orig.res = read.ensemble.synergies.drame.file(original.file)
+    rand.res = read.ensemble.synergies.drame.file(random.file)
     
-  } else {
-    # remake predictions object based on input files
+    data.validation(orig.res, rand.res, observed.synergies)
+    predictions = create.predictions.data.frame(orig.res, rand.res, observed.synergies)
   }
+  else {
+    # use example `predictions`
+    predictions = predictions.example
+  }
+  
+  method.check(method, predictions)
+  
+  # analyze predictions
+  
+  # pre = arrange(predictions, !!method)
+  # thres.values = select(predictions, exp.prod.norm)
+  
+  # output ROC
+  
 })
-
-#pre = arrange(predictions, !!method)
-#thres.values = select(predictions, exp.prod.norm)
-
-
 ```
