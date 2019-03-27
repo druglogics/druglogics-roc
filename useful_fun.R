@@ -41,9 +41,9 @@ check.perturbations = function(perturbations.orig, perturbations.rand) {
 # with the `predictions` given
 method.check = function(method, predictions) {
   if ((!"original" %in% colnames(predictions) &
-      (method %in% c("original", "exp-orig", "exp-prod-norm", "exp-fold-change-norm"))) |
+      (method %in% c("original", "exp-prod-norm", "exp-fold-change-norm"))) |
       (!"random" %in% colnames(predictions) &
-       (method %in% c("random", "exp-rand", "exp-prod-norm", "exp-fold-change-norm"))))
+       (method %in% c("random", "exp-prod-norm", "exp-fold-change-norm"))))
      stop("method selected not compatible with predictions data")
 }
 
@@ -73,7 +73,7 @@ create.predictions.data.frame =
   }
 
 # add further columns to the `predictions` data.frame
-normalize.predictions = function(predictions) {
+normalize = function(predictions) {
   if ("original" %in% colnames(predictions)) {
     predictions = mutate(predictions, exp.orig = exp(original))
   }
@@ -85,4 +85,69 @@ normalize.predictions = function(predictions) {
     predictions = mutate(predictions, exp.fold.change.norm = exp(original - random))
   }
   return(predictions)
+}
+
+# `method` is the string defined in the UI whereas the
+# returned value is the corresponding column name for that method
+map.method.to.column = function(method) {
+  if      (method == "exp-orig") return("exp.orig")
+  else if (method == "exp-rand") return("exp.rand")
+  else if (method == "exp-prod-norm") return("exp.prod.norm")
+  else if (method == "exp-fold-change-norm") return("exp.fold.change.norm")
+  else return(method)
+}
+
+# get the confusion matrix values (TP, FN, TN, FP) + TPR, FPR from a
+# `predictions` data.frame by comparing the score values from the column
+# `method.column` to the `thres.value`
+get.conf.mat.for.thres = function(predictions, method.column, thres.value) {
+  tp = 0
+  fn = 0
+  tn = 0
+  fp = 0
+
+  for(i in 1:nrow(predictions)) {
+    value = predictions[i, method.column]
+    obs   = predictions[i, "observed"]
+    if (value < thres.value & obs == 1) {
+      # print(paste0("Value: ", value))
+      tp = tp + 1
+    } else if (value < thres.value & obs == 0) {
+      fp = fp + 1
+    } else if (value >= thres.value & obs == 1) {
+      fn = fn + 1
+    } else if (value >= thres.value & obs == 0) {
+      tn = tn + 1
+    }
+  }
+
+  tpr = tp / (tp + fn)
+  fpr = fp / (fp + tn)
+
+  res = c(tp, fn, tn, fp, tpr, fpr)
+  names(res) = c("TP", "FN", "TN", "FP", "TPR", "FPR")
+
+  return(res)
+}
+
+gen.roc.stats = function(predictions, method.column) {
+  thres.values = sort(unique(predictions[,method.column]))
+
+  stats = list()
+  index = 1
+  for(thres.value in thres.values) {
+    stats[[index]] =
+      c(thres.value, get.conf.mat.for.thres(predictions, method.column, thres.value))
+    index = index + 1
+  }
+
+  roc_stats = as.data.frame(do.call(rbind, stats))
+  colnames(roc_stats)[1] = "threshold"
+
+  return(roc_stats)
+}
+
+# `digits.to.keep` refers to digits after decimal point '.'
+specify.decimal = function(number, digits.to.keep) {
+  trimws(format(round(number, digits.to.keep), nsmall = digits.to.keep))
 }

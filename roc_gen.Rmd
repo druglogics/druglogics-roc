@@ -18,8 +18,7 @@ module `drabme`.
 
 # Prerequisites
 
-```{r Load libraries and functions, message = FALSE}
-library(shiny) # 1.2.0
+```{r Load useful functions, message = FALSE}
 source("useful_fun.R") # loads `dplyr`
 ```
 
@@ -27,19 +26,20 @@ source("useful_fun.R") # loads `dplyr`
 
 **Input files** that are needed in order to generate the ROC curve are:
 
-- At least **one ensemble-wise synergy** result file
-  - In case of two such files, the second is used for normalizing the results 
-  of the first through various methods
 - One **observed synergies file** to test against the synergies found from the 
 `drabme` simulation(s)
+- At least **one ensemble-wise synergy** result file
+  - In case of one such file, the ROC curve can be drawn using either the 
+  **original** synergy score results or the **random** ones
+  - In case of two such files, the second (**random**) is used for normalizing 
+  the results of the first (**original**) through various methods:
+    - **exp-prod-norm**: $orig\cdot rand\Rightarrow exp(orig)\cdot exp(rand)=exp(orig+rand)$
+    - **exp-fold-change-norm**: $orig/ rand\Rightarrow exp(orig)/ exp(rand)=exp(orig-rand)$
 
 Check in the `input/` dir for example files and their format.  
 In the next section we show how to create a combined `predictions` object from
 such files:
 ```{r Input and validation}
-# Set the working directory to the druglogics-roc-generator folder: 
-# setwd("pathTo/druglogics-roc-generator")
-
 input.dir = paste0(getwd(), '/input')
 original.file = paste0(input.dir, "/ensemble_synergies")
 random.file = paste0(input.dir, "/ensemble_synergies_random")
@@ -57,37 +57,27 @@ predictions.example =
 
 You can of course use the rest of the code if you can create a `predictions` 
 object yourself (with at least one of the `original` or `random` columns).  
-Get a glimpse of the `predictions` data:
-```{r, echo = FALSE}
-numericInput("rows", "How many rows to show?", 5)
+
+Get a glimpse of the `predictions.example` data:
+```{r Example predictions (embeded Sniny input and ouput), echo = FALSE}
+numericInput(inputId = "rows", label = "How many rows to show?", value = 5,
+             min = 0, max = nrow(predictions.example))
 
 renderTable({
   head(predictions.example, n = input$rows)
 }, digits = 7)
 ```
 
-# Scaling/Normalization
-
-In order to generate ROC curves some scaling/normalization of the single and/or 
-combined ensemble-wise synergy score results needs to be done. The main methods 
-used are:
-
-- Single exponentation (scaling)
-  - **exp-orig**: $original\Rightarrow exp(original)$
-  - **exp-rand**: $random\Rightarrow exp(random)$
-- Combined exponentation (normalization)
-  - **exp-prod-norm**: $orig\cdot rand\Rightarrow exp(orig)\cdot exp(rand)=exp(orig+rand)$
-  - **exp-fold-change-norm**: $orig/ rand\Rightarrow exp(orig)/ exp(rand)=exp(orig-rand)$
-
 # Create ROC Curve
 
-Choose a normalization method and input files (at least one drabme file is 
-needed, otherwise the example input is used from above) to draw the ROC curve:
-```{r, echo = FALSE}
+Choose a single or a normalization method and input files (at least one drabme 
+file is needed, otherwise the example input from above is used) to draw the ROC 
+curve:
+```{r Sniny App To Be, echo = FALSE}
 # Input section
 selectInput(inputId = "method", label = "Select Method", 
-            choices = c("original", "random", "exp-orig", "exp-rand", 
-                        "exp-prod-norm", "exp-fold-change-norm"))
+            choices = c("original", "random", "exp-prod-norm", 
+                        "exp-fold-change-norm"))
 
 fileInput(inputId = "observed", label = "Select Observed Synergies File", 
           buttonLabel = "Browse...", placeholder = "No file selected")
@@ -104,7 +94,7 @@ renderPlot({
   original.file = input$orig$datapath
   random.file = input$rand$datapath
   
-  # decide on the `predictions` object
+  # which `predictions` object to use?
   if (!is.null(observed.synergies.file) & (!is.null(original.file) | 
                                            !is.null(random.file))) {
     # we generate new `predictions`
@@ -120,14 +110,26 @@ renderPlot({
     predictions = predictions.example
   }
   
+  # validate if input method is combatible with `predictions` data
   method.check(method, predictions)
+  method.column = map.method.to.column(method)
   
-  # analyze predictions
+  # normalize
+  predictions = normalize(predictions)
   
-  # pre = arrange(predictions, !!method)
-  # thres.values = select(predictions, exp.prod.norm)
+  # generate ROC stats and curve
+  roc_stats = gen.roc.stats(predictions, method.column)
+  x = roc_stats$FPR
+  y = roc_stats$TPR
+  AUC = sum(diff(x) * (head(y,-1)+tail(y,-1)))/2
   
-  # output ROC
+  plot(x, y, type = "b", col = "blue", 
+       main = "ROC curve", xlab = "False Positive Rate (FPR)", 
+       ylab = "True Positive Rate (TPR)")
+  legend("bottomright", legend = specify.decimal(AUC, digits.to.keep = 3), 
+         title = "AUC", col = "blue", pch = 19)
+  grid()
+  abline(a = 0, b = 1, col = "lightgray", lty = 2) # y=bx+a
   
-})
+}, height = 500, width = 500)
 ```
