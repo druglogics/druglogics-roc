@@ -74,12 +74,6 @@ create.predictions.data.frame =
 
 # add further columns to the `predictions` data.frame
 normalize = function(predictions) {
-  if ("original" %in% colnames(predictions)) {
-    predictions = mutate(predictions, exp.orig = exp(original))
-  }
-  if ("random" %in% colnames(predictions)) {
-    predictions = mutate(predictions, exp.rand = exp(random))
-  }
   if(all(c("original", "random") %in% colnames(predictions))) {
     predictions = mutate(predictions, exp.prod.norm = exp(original + random))
     predictions = mutate(predictions, exp.fold.change.norm = exp(original - random))
@@ -123,9 +117,11 @@ get.conf.mat.for.thres = function(predictions, method.column, thres.value) {
 
   tpr = tp / (tp + fn)
   fpr = fp / (fp + tn)
+  youden.index = tpr - fpr
+  dist.from.0.1 = (fpr - 0)^2 + (tpr - 1)^2
 
-  res = c(tp, fn, tn, fp, tpr, fpr)
-  names(res) = c("TP", "FN", "TN", "FP", "TPR", "FPR")
+  res = c(tp, fn, tn, fp, tpr, fpr, youden.index, dist.from.0.1)
+  names(res) = c("TP", "FN", "TN", "FP", "TPR", "FPR", "YoudenIndex", "distFrom0.1")
 
   return(res)
 }
@@ -150,4 +146,51 @@ gen.roc.stats = function(predictions, method.column) {
 # `digits.to.keep` refers to digits after decimal point '.'
 specify.decimal = function(number, digits.to.keep) {
   trimws(format(round(number, digits.to.keep), nsmall = digits.to.keep))
+}
+
+plot.roc = function(x, y, auc, method) {
+  plot(x, y, type = "b", col = "blue",
+       main = "ROC curve", xlab = "False Positive Rate (FPR)",
+       ylab = "True Positive Rate (TPR)")
+  legend("bottomright", legend = specify.decimal(AUC, digits.to.keep = 3),
+         title = paste0("AUC (method: ", method, ")"), col = "blue", pch = 19)
+  grid()
+  abline(a = 0, b = 1, col = "lightgray", lty = 2) # y=bx+a
+}
+
+plotly.roc = function(roc.stats, auc, method) {
+  # find optimal cutoffs
+  max.youden.index = roc.stats %>%
+    filter(YoudenIndex == max(YoudenIndex))
+  min.dist.from.0.1 = roc.stats %>%
+    filter(distFrom0.1 == min(distFrom0.1))
+
+  chance.line = rbind.data.frame(c(0,0), c(1,1)) # y = x
+  colnames(chance.line) = c("x", "y")
+
+  plot_ly(height = 500, width = 500) %>%
+    config(displayModeBar = FALSE) %>%
+    layout(title = 'ROC curve', showlegend = FALSE,
+           xaxis = list(title = 'False Positive Rate (FPR)'),
+           yaxis = list(title = 'True Positive Rate (TPR)')) %>%
+    add_annotations(x = 0.8, y = 0.25, showarrow = FALSE,
+                    text = paste0("AUC: ", specify.decimal(auc, digits.to.keep = 3)),
+                    font = list(color = "blue", size = 18)) %>%
+    add_annotations(x = 0.75, y = 0.15, showarrow = FALSE,
+                    text = paste0("Method: ", method),
+                    font = list(color = "#264E86", size = 18)) %>%
+    add_annotations(x = max.youden.index$FPR, y = max.youden.index$TPR,
+                    ax = 55, ay = 60, showarrow = TRUE,
+                    text = "Max Youden Index",
+                    font = list(color = "green")) %>%
+    add_annotations(x = min.dist.from.0.1$FPR, y = min.dist.from.0.1$TPR,
+                    ax = 0, ay = -60, showarrow = TRUE,
+                    text = "Min distance from (0,1)",
+                    font = list(color = "purple")) %>%
+    add_trace(data = roc.stats, x = ~FPR, y = ~TPR, name = "",
+              text = paste0("Threshold: ", specify.decimal(
+                roc.stats$threshold, digits.to.keep = 5)),
+              color = I("blue"), type = "scatter", mode = "lines+markers") %>%
+    add_trace(data = chance.line, x = ~x, y = ~y, type = "scatter", mode = "lines",
+              line = list(color = 'lightgrey', width = 2, dash = 'dot'))
 }

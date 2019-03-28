@@ -20,6 +20,7 @@ module `drabme`.
 
 ```{r Load useful functions, message = FALSE}
 source("useful_fun.R") # loads `dplyr`
+library(plotly) # 4.8.0
 ```
 
 # Example Input
@@ -87,7 +88,7 @@ fileInput(inputId = "rand", label = "Select Random Ensemble Synergies File",
           buttonLabel = "Browse...", placeholder = "No file selected")
 
 # drawing section
-renderPlot({
+renderPlotly({
   # take input
   method = input$method
   observed.synergies.file = input$observed$datapath
@@ -118,18 +119,14 @@ renderPlot({
   predictions = normalize(predictions)
   
   # generate ROC stats and curve
-  roc_stats = gen.roc.stats(predictions, method.column)
-  x = roc_stats$FPR
-  y = roc_stats$TPR
-  AUC = sum(diff(x) * (head(y,-1)+tail(y,-1)))/2
+  roc.stats = gen.roc.stats(predictions, method.column)
+  x = roc.stats$FPR
+  y = roc.stats$TPR
+  auc = sum(diff(x) * (head(y,-1)+tail(y,-1)))/2
   
-  plot(x, y, type = "b", col = "blue", 
-       main = "ROC curve", xlab = "False Positive Rate (FPR)", 
-       ylab = "True Positive Rate (TPR)")
-  legend("bottomright", legend = specify.decimal(AUC, digits.to.keep = 3), 
-         title = "AUC", col = "blue", pch = 19)
-  grid()
-  abline(a = 0, b = 1, col = "lightgray", lty = 2) # y=bx+a
+  # old-styled plot (use with `renderPlot`)
+  # plot.roc(x, y, auc, method)
   
-}, height = 500, width = 500)
+  plotly.roc(roc.stats, auc, method)
+})
 ```
