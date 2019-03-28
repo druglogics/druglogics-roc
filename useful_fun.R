@@ -168,7 +168,7 @@ plotly.roc = function(roc.stats, auc, method) {
   chance.line = rbind.data.frame(c(0,0), c(1,1)) # y = x
   colnames(chance.line) = c("x", "y")
 
-  plot_ly(height = 500, width = 500) %>%
+  plot_ly() %>%
     config(displayModeBar = FALSE) %>%
     layout(title = 'ROC curve', showlegend = FALSE,
            xaxis = list(title = 'False Positive Rate (FPR)'),

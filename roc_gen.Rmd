@@ -5,7 +5,7 @@ output:
   html_document:
     df_print: paged
     theme: united
-    toc: true
+    toc: false
     toc_float: true
 runtime: shiny
 ---
@@ -71,62 +71,71 @@ renderTable({
 
 # Create ROC Curve
 
-Choose a single or a normalization method and input files (at least one drabme 
-file is needed, otherwise the example input from above is used) to draw the ROC 
-curve:
+Choose a file with the observed synergies, at least one drabme output result 
+file and the method to calculate the ROC statistics.  
+By default, we draw the ROC curve for the example input from above:
+
 ```{r Sniny App To Be, echo = FALSE}
-# Input section
-selectInput(inputId = "method", label = "Select Method", 
-            choices = c("original", "random", "exp-prod-norm", 
-                        "exp-fold-change-norm"))
+ui = fluidPage(
+  sidebarLayout(
+    sidebarPanel(width = 5,
+      selectInput(inputId = "method", label = "Select Method", 
+                  choices = c("original", "random", "exp-prod-norm", 
+                              "exp-fold-change-norm")), 
+      fileInput(inputId = "observed", label = "Select Observed Synergies File", 
+                buttonLabel = "Browse...", placeholder = "No file selected"),
+      fileInput(inputId = "orig", label = "Select Original Ensemble Synergies File", 
+                buttonLabel = "Browse...", placeholder = "No file selected"),
+      fileInput(inputId = "rand", label = "Select Random Ensemble Synergies File", 
+                buttonLabel = "Browse...", placeholder = "No file selected")
+      ),
+    mainPanel(plotlyOutput(outputId = "rocPlot"), width = 7)
+  )
+)
 
-fileInput(inputId = "observed", label = "Select Observed Synergies File", 
-          buttonLabel = "Browse...", placeholder = "No file selected")
-fileInput(inputId = "orig", label = "Select Original Ensemble Synergies File", 
-          buttonLabel = "Browse...", placeholder = "No file selected")
-fileInput(inputId = "rand", label = "Select Random Ensemble Synergies File", 
-          buttonLabel = "Browse...", placeholder = "No file selected")
+server = function(input, output) {
+  output$rocPlot = renderPlotly({
+    # take input
+    method = input$method
+    observed.synergies.file = input$observed$datapath
+    original.file = input$orig$datapath
+    random.file = input$rand$datapath
+  
+    # which `predictions` object to use?
+    if (!is.null(observed.synergies.file) & (!is.null(original.file) |
+                                             !is.null(random.file))) {
+      # we generate new `predictions`
+      observed.synergies = get.observed.synergies(observed.synergies.file)
+      orig.res = read.ensemble.synergies.drame.file(original.file)
+      rand.res = read.ensemble.synergies.drame.file(random.file)
+  
+      data.validation(orig.res, rand.res, observed.synergies)
+      predictions = create.predictions.data.frame(orig.res, rand.res, observed.synergies)
+    }
+    else {
+      # use example `predictions`
+      predictions = predictions.example
+    }
+  
+    # validate if input method is combatible with `predictions` data
+    method.check(method, predictions)
+    method.column = map.method.to.column(method)
+  
+    # normalize
+    predictions = normalize(predictions)
+  
+    # generate ROC stats and curve
+    roc.stats = gen.roc.stats(predictions, method.column)
+    x = roc.stats$FPR
+    y = roc.stats$TPR
+    auc = sum(diff(x) * (head(y,-1)+tail(y,-1)))/2
+  
+    # old-styled plot (use with `renderPlot` and `plotOutput`)
+    # plot.roc(x, y, auc, method)
+  
+    plotly.roc(roc.stats, auc, method)
+  })
+}
 
-# drawing section
-renderPlotly({
-  # take input
-  method = input$method
-  observed.synergies.file = input$observed$datapath
-  original.file = input$orig$datapath
-  random.file = input$rand$datapath
-  
-  # which `predictions` object to use?
-  if (!is.null(observed.synergies.file) & (!is.null(original.file) | 
-                                           !is.null(random.file))) {
-    # we generate new `predictions`
-    observed.synergies = get.observed.synergies(observed.synergies.file)
-    orig.res = read.ensemble.synergies.drame.file(original.file)
-    rand.res = read.ensemble.synergies.drame.file(random.file)
-    
-    data.validation(orig.res, rand.res, observed.synergies)
-    predictions = create.predictions.data.frame(orig.res, rand.res, observed.synergies)
-  }
-  else {
-    # use example `predictions`
-    predictions = predictions.example
-  }
-  
-  # validate if input method is combatible with `predictions` data
-  method.check(method, predictions)
-  method.column = map.method.to.column(method)
-  
-  # normalize
-  predictions = normalize(predictions)
-  
-  # generate ROC stats and curve
-  roc.stats = gen.roc.stats(predictions, method.column)
-  x = roc.stats$FPR
-  y = roc.stats$TPR
-  auc = sum(diff(x) * (head(y,-1)+tail(y,-1)))/2
-  
-  # old-styled plot (use with `renderPlot`)
-  # plot.roc(x, y, auc, method)
-  
-  plotly.roc(roc.stats, auc, method)
-})
+shinyApp(ui, server, options = list(height = 500))
 ```
