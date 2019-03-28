@@ -120,8 +120,8 @@ get.conf.mat.for.thres = function(predictions, method.column, thres.value) {
   youden.index = tpr - fpr
   dist.from.0.1 = (fpr - 0)^2 + (tpr - 1)^2
 
-  res = c(tp, fn, tn, fp, tpr, fpr, youden.index, dist.from.0.1)
-  names(res) = c("TP", "FN", "TN", "FP", "TPR", "FPR", "YoudenIndex", "distFrom0.1")
+  res = c(tp, fn, tn, fp, fpr, tpr, youden.index, dist.from.0.1)
+  names(res) = c("TP", "FN", "TN", "FP", "FPR", "TPR", "YoudenIndex", "distFrom0.1")
 
   return(res)
 }
@@ -168,7 +168,7 @@ plotly.roc = function(roc.stats, auc, method) {
   chance.line = rbind.data.frame(c(0,0), c(1,1)) # y = x
   colnames(chance.line) = c("x", "y")
 
-  plot_ly() %>%
+  plot_ly(height = 430, width = 500) %>%
     config(displayModeBar = FALSE) %>%
     layout(title = 'ROC curve', showlegend = FALSE,
            xaxis = list(title = 'False Positive Rate (FPR)'),

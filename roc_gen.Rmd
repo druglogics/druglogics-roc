@@ -21,6 +21,7 @@ module `drabme`.
 ```{r Load useful functions, message = FALSE}
 source("useful_fun.R") # loads `dplyr`
 library(plotly) # 4.8.0
+library(DT) # 0.5
 ```
 
 # Example Input
@@ -75,7 +76,7 @@ Choose a file with the observed synergies, at least one drabme output result
 file and the method to calculate the ROC statistics.  
 By default, we draw the ROC curve for the example input from above:
 
-```{r Sniny App To Be, echo = FALSE}
+```{r ROC shiny app, echo = FALSE}
 ui = fluidPage(
   sidebarLayout(
     sidebarPanel(width = 5,
@@ -90,13 +91,18 @@ ui = fluidPage(
                 buttonLabel = "Browse...", placeholder = "No file selected")
       ),
     mainPanel(plotlyOutput(outputId = "rocPlot"), width = 7)
-  )
+  ),
+  basicPage(DT::dataTableOutput(outputId = "rocStatsTable"))
 )
 
 server = function(input, output) {
-  output$rocPlot = renderPlotly({
-    # take input
+  
+  get.method.reactive = reactive({
     method = input$method
+  })
+  
+  get.roc.stats.reactive = reactive({
+    method = get.method.reactive()
     observed.synergies.file = input$observed$datapath
     original.file = input$orig$datapath
     random.file = input$rand$datapath
@@ -124,8 +130,14 @@ server = function(input, output) {
     # normalize
     predictions = normalize(predictions)
   
-    # generate ROC stats and curve
+    # generate ROC stats
     roc.stats = gen.roc.stats(predictions, method.column)
+  })
+  
+  output$rocPlot = renderPlotly({
+    method = get.method.reactive()
+    roc.stats = get.roc.stats.reactive()
+    
     x = roc.stats$FPR
     y = roc.stats$TPR
     auc = sum(diff(x) * (head(y,-1)+tail(y,-1)))/2
@@ -135,7 +147,11 @@ server = function(input, output) {
   
     plotly.roc(roc.stats, auc, method)
   })
+  
+  output$rocStatsTable = DT::renderDataTable({
+    roc.stats = get.roc.stats.reactive()
+  })
 }
 
-shinyApp(ui, server, options = list(height = 500))
+shinyApp(ui, server, options = list(height = 1000, width = 1200))
 ```
