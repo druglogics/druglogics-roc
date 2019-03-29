@@ -89,7 +89,8 @@ ui = fluidPage(
                 buttonLabel = 'Browse...', placeholder = 'No file selected'),
       fileInput(inputId = 'rand', label = 'Select Random Ensemble Synergies File', 
                 buttonLabel = 'Browse...', placeholder = 'No file selected'),
-      actionButton(inputId = 'downloadRocImage', label = 'download .svg')
+      actionButton(inputId = 'downloadRocImage', label = '.svg', 
+                   icon = icon('download'))
       ),
     mainPanel(plotlyOutput(outputId = 'rocPlot'))
   ),
@@ -171,16 +172,6 @@ server = function(input, output) {
   observeEvent(input$downloadRocImage, {
     orca(p = get.roc.plotly(), file = 'roc.svg', format = 'svg')
   })
-  
-   # output$downloadRocImage <- downloadHandler(
-   #  filename = function() {
-   #    method = get.method.reactive()
-   #    paste0('roc-', method, '-', Sys.Date(), '.pdf')
-   #  },
-   #  content = function(file) {
-   #    p = get.roc.plot.reactive()
-   #    orca(p, format = 'pdf', filename)
-   #  })
   
   output$rocStatsTable = DT::renderDataTable({
     roc.stats = get.roc.stats()
