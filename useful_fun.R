@@ -152,7 +152,7 @@ plot.roc = function(x, y, auc, method) {
   plot(x, y, type = 'b', col = 'blue',
        main = 'ROC curve', xlab = 'False Positive Rate (FPR)',
        ylab = 'True Positive Rate (TPR)')
-  legend('bottomright', legend = specify.decimal(AUC, digits.to.keep = 3),
+  legend('bottomright', legend = specify.decimal(auc, digits.to.keep = 3),
          title = paste0('AUC (method: ', method, ')'), col = 'blue', pch = 19)
   grid()
   abline(a = 0, b = 1, col = 'lightgray', lty = 2) # y=bx+a
@@ -172,7 +172,8 @@ plotly.roc = function(roc.stats, auc, method) {
     config(displayModeBar = FALSE) %>%
     layout(title = 'ROC curve', showlegend = FALSE,
            xaxis = list(title = 'False Positive Rate (FPR)'),
-           yaxis = list(title = 'True Positive Rate (TPR)')) %>%
+           yaxis = list(title = 'True Positive Rate (TPR)'),
+           margin = list(l = 50, r = 50, b = 30, t = 50, pad = 4)) %>%
     add_annotations(x = 0.8, y = 0.25, showarrow = FALSE,
                     text = paste0('AUC: ', specify.decimal(auc, digits.to.keep = 3)),
                     font = list(color = 'blue', size = 18)) %>%
