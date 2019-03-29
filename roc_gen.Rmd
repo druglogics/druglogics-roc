@@ -20,7 +20,7 @@ module `drabme`.
 
 ```{r Load useful functions, message = FALSE}
 source('useful_fun.R') # loads `dplyr`
-library(plotly) # 4.8.0
+library(plotly) # 4.8.9000
 library(DT) # 0.5
 ```
 
@@ -79,7 +79,7 @@ By default, we draw the ROC curve for the example input from above:
 ```{r ROC shiny app, echo = FALSE}
 ui = fluidPage(
   sidebarLayout(
-    sidebarPanel(width = 5,
+    sidebarPanel(width = 4,
       selectInput(inputId = 'method', label = 'Select Method', 
                   choices = c('original', 'random', 'exp-prod-norm', 
                               'exp-fold-change-norm')), 
@@ -88,21 +88,22 @@ ui = fluidPage(
       fileInput(inputId = 'orig', label = 'Select Original Ensemble Synergies File', 
                 buttonLabel = 'Browse...', placeholder = 'No file selected'),
       fileInput(inputId = 'rand', label = 'Select Random Ensemble Synergies File', 
-                buttonLabel = 'Browse...', placeholder = 'No file selected')
+                buttonLabel = 'Browse...', placeholder = 'No file selected'),
+      actionButton(inputId = 'downloadRocImage', label = 'download .svg')
       ),
-    mainPanel(plotlyOutput(outputId = 'rocPlot'), width = 7)
+    mainPanel(plotlyOutput(outputId = 'rocPlot'))
   ),
   basicPage(DT::dataTableOutput(outputId = 'rocStatsTable'))
 )
 
 server = function(input, output) {
   
-  get.method.reactive = reactive({
+  get.method = reactive({
     method = input$method
   })
   
-  get.roc.stats.reactive = reactive({
-    method = get.method.reactive()
+  get.roc.stats = reactive({
+    method = get.method()
     observed.synergies.file = input$observed$datapath
     original.file = input$orig$datapath
     random.file = input$rand$datapath
@@ -134,22 +135,55 @@ server = function(input, output) {
     roc.stats = gen.roc.stats(predictions, method.column)
   })
   
-  output$rocPlot = renderPlotly({
-    method = get.method.reactive()
-    roc.stats = get.roc.stats.reactive()
+  # old-styled plot
+  # Use with `plotOutput, renderPlot` instead of `plotlyOutput, renderPlotly`
+  get.roc.plot.old = reactive({
+    method = get.method()
+    roc.stats = get.roc.stats()
     
     x = roc.stats$FPR
     y = roc.stats$TPR
     auc = sum(diff(x) * (head(y,-1)+tail(y,-1)))/2
+    
+    plot.roc(x, y, auc, method)
+  })
   
-    # old-styled plot (use with `renderPlot` and `plotOutput`)
-    # plot.roc(x, y, auc, method)
-  
+  get.roc.plotly = reactive({
+    method = get.method()
+    roc.stats = get.roc.stats()
+    
+    x = roc.stats$FPR
+    y = roc.stats$TPR
+    auc = sum(diff(x) * (head(y,-1)+tail(y,-1)))/2
+    
     plotly.roc(roc.stats, auc, method)
   })
   
+  # output$rocPlot = renderPlot({
+  #   get.roc.plot.old()
+  # }, height = 500, width = 500)
+  
+  output$rocPlot = renderPlotly({
+    get.roc.plotly()
+  })
+  
+  # download plotly ROC
+  observeEvent(input$downloadRocImage, {
+    orca(p = get.roc.plotly(), file = 'roc.svg', format = 'svg')
+  })
+  
+   # output$downloadRocImage <- downloadHandler(
+   #  filename = function() {
+   #    method = get.method.reactive()
+   #    paste0('roc-', method, '-', Sys.Date(), '.pdf')
+   #  },
+   #  content = function(file) {
+   #    p = get.roc.plot.reactive()
+   #    orca(p, format = 'pdf', filename)
+   #  })
+  
   output$rocStatsTable = DT::renderDataTable({
-    roc.stats = get.roc.stats.reactive()
+    roc.stats = get.roc.stats()
   }, caption = 'ROC Statistics')
 }
 
