@@ -1,6 +1,6 @@
 # druglogics-roc-generator
 
-An R markdown document with an embeded Shiny app to generate ROC curves based 
+An R markdown document with an embeded [Shiny](https://shiny.rstudio.com/) app to generate ROC curves based 
 on the `Drabme` ensemble-wise synergy output results. If you are using Rstudio,
 try this command:
 ```
