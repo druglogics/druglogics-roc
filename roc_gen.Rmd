@@ -1,6 +1,6 @@
 ---
-title: "Druglogics ROC curve Generator"
-author: "[John Zobolas](https://github.com/bblodfon)"
+title: 'Druglogics ROC curve Generator'
+author: '[John Zobolas](https://github.com/bblodfon)'
 output:
   html_document:
     df_print: paged
@@ -19,7 +19,7 @@ module `drabme`.
 # Prerequisites
 
 ```{r Load useful functions, message = FALSE}
-source("useful_fun.R") # loads `dplyr`
+source('useful_fun.R') # loads `dplyr`
 library(plotly) # 4.8.0
 library(DT) # 0.5
 ```
@@ -43,9 +43,9 @@ In the next section we show how to create a combined `predictions` object from
 such files:
 ```{r Input and validation}
 input.dir = paste0(getwd(), '/input')
-original.file = paste0(input.dir, "/ensemble_synergies")
-random.file = paste0(input.dir, "/ensemble_synergies_random")
-observed.synergies.file = paste0(input.dir, "/observed_synergies")
+original.file = paste0(input.dir, '/ensemble_synergies')
+random.file = paste0(input.dir, '/ensemble_synergies_random')
+observed.synergies.file = paste0(input.dir, '/observed_synergies')
 
 # load files
 observed.synergies = get.observed.synergies(observed.synergies.file)
@@ -62,7 +62,7 @@ object yourself (with at least one of the `original` or `random` columns).
 
 Get a glimpse of the `predictions.example` data:
 ```{r Example predictions (embeded Sniny input and ouput), echo = FALSE}
-numericInput(inputId = "rows", label = "How many rows to show?", value = 5,
+numericInput(inputId = 'rows', label = 'How many rows to show?', value = 5,
              min = 0, max = nrow(predictions.example))
 
 renderTable({
@@ -80,19 +80,19 @@ By default, we draw the ROC curve for the example input from above:
 ui = fluidPage(
   sidebarLayout(
     sidebarPanel(width = 5,
-      selectInput(inputId = "method", label = "Select Method", 
-                  choices = c("original", "random", "exp-prod-norm", 
-                              "exp-fold-change-norm")), 
-      fileInput(inputId = "observed", label = "Select Observed Synergies File", 
-                buttonLabel = "Browse...", placeholder = "No file selected"),
-      fileInput(inputId = "orig", label = "Select Original Ensemble Synergies File", 
-                buttonLabel = "Browse...", placeholder = "No file selected"),
-      fileInput(inputId = "rand", label = "Select Random Ensemble Synergies File", 
-                buttonLabel = "Browse...", placeholder = "No file selected")
+      selectInput(inputId = 'method', label = 'Select Method', 
+                  choices = c('original', 'random', 'exp-prod-norm', 
+                              'exp-fold-change-norm')), 
+      fileInput(inputId = 'observed', label = 'Select Observed Synergies File', 
+                buttonLabel = 'Browse...', placeholder = 'No file selected'),
+      fileInput(inputId = 'orig', label = 'Select Original Ensemble Synergies File', 
+                buttonLabel = 'Browse...', placeholder = 'No file selected'),
+      fileInput(inputId = 'rand', label = 'Select Random Ensemble Synergies File', 
+                buttonLabel = 'Browse...', placeholder = 'No file selected')
       ),
-    mainPanel(plotlyOutput(outputId = "rocPlot"), width = 7)
+    mainPanel(plotlyOutput(outputId = 'rocPlot'), width = 7)
   ),
-  basicPage(DT::dataTableOutput(outputId = "rocStatsTable"))
+  basicPage(DT::dataTableOutput(outputId = 'rocStatsTable'))
 )
 
 server = function(input, output) {
@@ -150,7 +150,7 @@ server = function(input, output) {
   
   output$rocStatsTable = DT::renderDataTable({
     roc.stats = get.roc.stats.reactive()
-  })
+  }, caption = 'ROC Statistics')
 }
 
 shinyApp(ui, server, options = list(height = 1000, width = 1200))

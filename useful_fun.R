@@ -3,7 +3,7 @@ library(dplyr) # 0.8.0.1
 # load observed synergies file
 get.observed.synergies = function(observed.synergies.file) {
   lines = readLines(observed.synergies.file)
-  observed.synergies = gsub("~", "-", lines)
+  observed.synergies = gsub('~', '-', lines)
   return(observed.synergies)
 }
 
@@ -11,10 +11,10 @@ get.observed.synergies = function(observed.synergies.file) {
 read.ensemble.synergies.drame.file = function(ensemble.file) {
   res = NULL
   if (!is.null(ensemble.file)) {
-    res = read.table(file = ensemble.file, sep = "\t",
-                     col.names = c("perturbation", "score"),
+    res = read.table(file = ensemble.file, sep = '\t',
+                     col.names = c('perturbation', 'score'),
                      stringsAsFactors = FALSE)
-    res$perturbation = gsub("\\[|\\]", "", res$perturbation)
+    res$perturbation = gsub('\\[|\\]', '', res$perturbation)
   }
 
   return(res)
@@ -40,11 +40,11 @@ check.perturbations = function(perturbations.orig, perturbations.rand) {
 # checks that you can perform the desired scaling/normalization `method`
 # with the `predictions` given
 method.check = function(method, predictions) {
-  if ((!"original" %in% colnames(predictions) &
-      (method %in% c("original", "exp-prod-norm", "exp-fold-change-norm"))) |
-      (!"random" %in% colnames(predictions) &
-       (method %in% c("random", "exp-prod-norm", "exp-fold-change-norm"))))
-     stop("method selected not compatible with predictions data")
+  if ((!'original' %in% colnames(predictions) &
+      (method %in% c('original', 'exp-prod-norm', 'exp-fold-change-norm'))) |
+      (!'random' %in% colnames(predictions) &
+       (method %in% c('random', 'exp-prod-norm', 'exp-fold-change-norm'))))
+     stop('method selected not compatible with predictions data')
 }
 
 create.predictions.data.frame =
@@ -55,26 +55,26 @@ create.predictions.data.frame =
       observed = sapply(perturbations %in% observed.synergies, as.numeric)
       predictions = cbind.data.frame(perturbations, observed, orig.res$score,
                                      stringsAsFactors = FALSE)
-      colnames(predictions) = c("perturbation", "observed", "original")
+      colnames(predictions) = c('perturbation', 'observed', 'original')
     } else if (is.null(orig.res) & !is.null(rand.res)) {
       perturbations = rand.res$perturbation
       observed = sapply(perturbations %in% observed.synergies, as.numeric)
       predictions = cbind.data.frame(perturbations, observed, rand.res$score,
                                      stringsAsFactors = FALSE)
-      colnames(predictions) = c("perturbation", "observed", "random")
+      colnames(predictions) = c('perturbation', 'observed', 'random')
     } else if (!is.null(orig.res) & !is.null(rand.res)) { # we have 2 drabme files
       perturbations = orig.res$perturbation
       observed = sapply(perturbations %in% observed.synergies, as.numeric)
       predictions = cbind.data.frame(perturbations, observed, orig.res$score,
                                      rand.res$score, stringsAsFactors = FALSE)
-      colnames(predictions) = c("perturbation", "observed", "original", "random")
+      colnames(predictions) = c('perturbation', 'observed', 'original', 'random')
     }
     return(predictions)
   }
 
 # add further columns to the `predictions` data.frame
 normalize = function(predictions) {
-  if(all(c("original", "random") %in% colnames(predictions))) {
+  if(all(c('original', 'random') %in% colnames(predictions))) {
     predictions = mutate(predictions, exp.prod.norm = exp(original + random))
     predictions = mutate(predictions, exp.fold.change.norm = exp(original - random))
   }
@@ -84,10 +84,10 @@ normalize = function(predictions) {
 # `method` is the string defined in the UI whereas the
 # returned value is the corresponding column name for that method
 map.method.to.column = function(method) {
-  if      (method == "exp-orig") return("exp.orig")
-  else if (method == "exp-rand") return("exp.rand")
-  else if (method == "exp-prod-norm") return("exp.prod.norm")
-  else if (method == "exp-fold-change-norm") return("exp.fold.change.norm")
+  if      (method == 'exp-orig') return('exp.orig')
+  else if (method == 'exp-rand') return('exp.rand')
+  else if (method == 'exp-prod-norm') return('exp.prod.norm')
+  else if (method == 'exp-fold-change-norm') return('exp.fold.change.norm')
   else return(method)
 }
 
@@ -102,9 +102,9 @@ get.conf.mat.for.thres = function(predictions, method.column, thres.value) {
 
   for(i in 1:nrow(predictions)) {
     value = predictions[i, method.column]
-    obs   = predictions[i, "observed"]
+    obs   = predictions[i, 'observed']
     if (value < thres.value & obs == 1) {
-      # print(paste0("Value: ", value))
+      # print(paste0('Value: ', value))
       tp = tp + 1
     } else if (value < thres.value & obs == 0) {
       fp = fp + 1
@@ -121,7 +121,7 @@ get.conf.mat.for.thres = function(predictions, method.column, thres.value) {
   dist.from.0.1 = (fpr - 0)^2 + (tpr - 1)^2
 
   res = c(tp, fn, tn, fp, fpr, tpr, youden.index, dist.from.0.1)
-  names(res) = c("TP", "FN", "TN", "FP", "FPR", "TPR", "YoudenIndex", "distFrom0.1")
+  names(res) = c('TP', 'FN', 'TN', 'FP', 'FPR', 'TPR', 'YoudenIndex', 'distFrom0.1')
 
   return(res)
 }
@@ -138,7 +138,7 @@ gen.roc.stats = function(predictions, method.column) {
   }
 
   roc_stats = as.data.frame(do.call(rbind, stats))
-  colnames(roc_stats)[1] = "threshold"
+  colnames(roc_stats)[1] = 'threshold'
 
   return(roc_stats)
 }
@@ -149,13 +149,13 @@ specify.decimal = function(number, digits.to.keep) {
 }
 
 plot.roc = function(x, y, auc, method) {
-  plot(x, y, type = "b", col = "blue",
-       main = "ROC curve", xlab = "False Positive Rate (FPR)",
-       ylab = "True Positive Rate (TPR)")
-  legend("bottomright", legend = specify.decimal(AUC, digits.to.keep = 3),
-         title = paste0("AUC (method: ", method, ")"), col = "blue", pch = 19)
+  plot(x, y, type = 'b', col = 'blue',
+       main = 'ROC curve', xlab = 'False Positive Rate (FPR)',
+       ylab = 'True Positive Rate (TPR)')
+  legend('bottomright', legend = specify.decimal(AUC, digits.to.keep = 3),
+         title = paste0('AUC (method: ', method, ')'), col = 'blue', pch = 19)
   grid()
-  abline(a = 0, b = 1, col = "lightgray", lty = 2) # y=bx+a
+  abline(a = 0, b = 1, col = 'lightgray', lty = 2) # y=bx+a
 }
 
 plotly.roc = function(roc.stats, auc, method) {
@@ -166,7 +166,7 @@ plotly.roc = function(roc.stats, auc, method) {
     filter(distFrom0.1 == min(distFrom0.1))
 
   chance.line = rbind.data.frame(c(0,0), c(1,1)) # y = x
-  colnames(chance.line) = c("x", "y")
+  colnames(chance.line) = c('x', 'y')
 
   plot_ly(height = 430, width = 500) %>%
     config(displayModeBar = FALSE) %>%
@@ -174,23 +174,23 @@ plotly.roc = function(roc.stats, auc, method) {
            xaxis = list(title = 'False Positive Rate (FPR)'),
            yaxis = list(title = 'True Positive Rate (TPR)')) %>%
     add_annotations(x = 0.8, y = 0.25, showarrow = FALSE,
-                    text = paste0("AUC: ", specify.decimal(auc, digits.to.keep = 3)),
-                    font = list(color = "blue", size = 18)) %>%
+                    text = paste0('AUC: ', specify.decimal(auc, digits.to.keep = 3)),
+                    font = list(color = 'blue', size = 18)) %>%
     add_annotations(x = 0.75, y = 0.15, showarrow = FALSE,
-                    text = paste0("Method: ", method),
-                    font = list(color = "#264E86", size = 18)) %>%
+                    text = paste0('Method: ', method),
+                    font = list(color = '#264E86', size = 18)) %>%
     add_annotations(x = max.youden.index$FPR, y = max.youden.index$TPR,
                     ax = 55, ay = 60, showarrow = TRUE,
-                    text = "Max Youden Index",
-                    font = list(color = "green")) %>%
+                    text = 'Max Youden Index',
+                    font = list(color = 'green')) %>%
     add_annotations(x = min.dist.from.0.1$FPR, y = min.dist.from.0.1$TPR,
                     ax = 0, ay = -60, showarrow = TRUE,
-                    text = "Min distance from (0,1)",
-                    font = list(color = "purple")) %>%
-    add_trace(data = roc.stats, x = ~FPR, y = ~TPR, name = "",
-              text = paste0("Threshold: ", specify.decimal(
+                    text = 'Min distance from (0,1)',
+                    font = list(color = 'purple')) %>%
+    add_trace(data = roc.stats, x = ~FPR, y = ~TPR, name = '',
+              text = paste0('Threshold: ', specify.decimal(
                 roc.stats$threshold, digits.to.keep = 5)),
-              color = I("blue"), type = "scatter", mode = "lines+markers") %>%
-    add_trace(data = chance.line, x = ~x, y = ~y, type = "scatter", mode = "lines",
+              color = I('blue'), type = 'scatter', mode = 'lines+markers') %>%
+    add_trace(data = chance.line, x = ~x, y = ~y, type = 'scatter', mode = 'lines',
               line = list(color = 'lightgrey', width = 2, dash = 'dot'))
 }
