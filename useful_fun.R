@@ -11,7 +11,7 @@ get.observed.synergies = function(observed.synergies.file) {
 read.ensemble.synergies.drame.file = function(ensemble.file) {
   res = NULL
   if (!is.null(ensemble.file)) {
-    res = read.table(file = ensemble.file, sep = '\t',
+    res = read.table(file = ensemble.file, sep = '\t', header = FALSE, skip = 1,
                      col.names = c('perturbation', 'score'),
                      stringsAsFactors = FALSE)
     res$perturbation = gsub('\\[|\\]', '', res$perturbation)
