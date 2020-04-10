@@ -1,32 +1,21 @@
-data.validation = function(orig.res = NULL, rand.res = NULL, observed.synergies) {
-  if (!is.null(orig.res) & !(is.null(rand.res)))
-    check.perturbations(orig.res$perturbation, rand.res$perturbation)
+validate_input = function(orig_res = NULL, rand_res = NULL, observed.synergies) {
+  if (!is.null(orig_res) & !(is.null(rand_res)))
+    check_perturbations(orig_res$perturbation, rand_res$perturbation)
 
   # check that the observed synergies are all part of the perturbations tested
-  if (!is.null(orig.res))
-    stopifnot(all(observed.synergies %in% orig.res$perturbation))
-  if (!is.null(rand.res))
-    stopifnot(all(observed.synergies %in% rand.res$perturbation))
+  if (!is.null(orig_res))
+    stopifnot(all(observed.synergies %in% orig_res$perturbation))
+  if (!is.null(rand_res))
+    stopifnot(all(observed.synergies %in% rand_res$perturbation))
 }
 
 # checks that the same perturbations were tested in the
 # original and random files and in the same order
-check.perturbations = function(perturbations.orig, perturbations.rand) {
+check_perturbations = function(perturbations.orig, perturbations.rand) {
   stopifnot(all(perturbations.orig == perturbations.rand))
 }
 
-# checks that you can perform the desired scaling/normalization `method`
-# with the `predictions` given
-method.check = function(method, predictions) {
-  if ((!'original' %in% colnames(predictions) &
-      (method %in% c('original', 'exp-prod-norm', 'exp-fold-change-norm'))) |
-      (!'random' %in% colnames(predictions) &
-       (method %in% c('random', 'exp-prod-norm', 'exp-fold-change-norm'))))
-     stop('method selected not compatible with predictions data')
-}
-
-create_predictions_df =
-  function(orig_res = NULL, rand_res = NULL, observed_synergies) {
+create_predictions_df = function(orig_res = NULL, rand_res = NULL, observed_synergies) {
     predictions = NULL
     if (is.null(rand_res) & !is.null(orig_res)) {
       perturbations = orig_res$perturbation
@@ -50,36 +39,43 @@ create_predictions_df =
     return(predictions)
   }
 
-# add further columns to the `predictions` data.frame
-normalize = function(predictions) {
+# adds 2 further columns to the `predictions` data.frame
+# 2 linear combinations of biomarkers (+,-)
+combine_biomarkers = function(predictions) {
   if(all(c('original', 'random') %in% colnames(predictions))) {
-    predictions = mutate(predictions, exp.prod.norm = exp(original + random))
-    predictions = mutate(predictions, exp.fold.change.norm = exp(original - random))
+    predictions = mutate(predictions, 'original+random' = original + random)
+    predictions = mutate(predictions, 'original-random' = original - random)
   }
   return(predictions)
 }
 
-# `method` is the string defined in the UI whereas the
-# returned value is the corresponding column name for that method
-map.method.to.column = function(method) {
-  if      (method == 'exp-orig') return('exp.orig')
-  else if (method == 'exp-rand') return('exp.rand')
-  else if (method == 'exp-prod-norm') return('exp.prod.norm')
-  else if (method == 'exp-fold-change-norm') return('exp.fold.change.norm')
-  else return(method)
+gen_roc_stats = function(predictions, method) {
+  thresholds = sort(unique(predictions[,method]))
+
+  stats = list()
+  index = 1
+  for(thres in thresholds) {
+    stats[[index]] = c(thres, get_conf_mat_for_thres(predictions, method, thres))
+    index = index + 1
+  }
+
+  roc_stats = as.data.frame(do.call(rbind, stats))
+  colnames(roc_stats)[1] = 'threshold'
+
+  return(roc_stats)
 }
 
 # get the confusion matrix values (TP, FN, TN, FP) + TPR, FPR from a
 # `predictions` data.frame by comparing the score values from the column
-# `method.column` to the `thres.value`
-get.conf.mat.for.thres = function(predictions, method.column, thres.value) {
+# `method` to the `thres.value`
+get_conf_mat_for_thres = function(predictions, method, thres.value) {
   tp = 0
   fn = 0
   tn = 0
   fp = 0
 
   for(i in 1:nrow(predictions)) {
-    value = predictions[i, method.column]
+    value = predictions[i, method]
     obs   = predictions[i, 'observed']
     if (value < thres.value & obs == 1) {
       # print(paste0('Value: ', value))
@@ -104,44 +100,27 @@ get.conf.mat.for.thres = function(predictions, method.column, thres.value) {
   return(res)
 }
 
-gen.roc.stats = function(predictions, method.column) {
-  thres.values = sort(unique(predictions[,method.column]))
+# plot_roc = function(x, y, auc, method) {
+#   plot(x, y, type = 'b', col = 'blue',
+#        main = 'ROC curve', xlab = 'False Positive Rate (FPR)',
+#        ylab = 'True Positive Rate (TPR)')
+#   legend('bottomright', legend = specify_decimal(auc, digits.to.keep = 3),
+#          title = paste0('AUC (method: ', method, ')'), col = 'blue', pch = 19)
+#   grid()
+#   abline(a = 0, b = 1, col = 'lightgray', lty = 2) # y=bx+a
+# }
 
-  stats = list()
-  index = 1
-  for(thres.value in thres.values) {
-    stats[[index]] =
-      c(thres.value, get.conf.mat.for.thres(predictions, method.column, thres.value))
-    index = index + 1
-  }
-
-  roc_stats = as.data.frame(do.call(rbind, stats))
-  colnames(roc_stats)[1] = 'threshold'
-
-  return(roc_stats)
-}
-
-plot.roc = function(x, y, auc, method) {
-  plot(x, y, type = 'b', col = 'blue',
-       main = 'ROC curve', xlab = 'False Positive Rate (FPR)',
-       ylab = 'True Positive Rate (TPR)')
-  legend('bottomright', legend = specify_decimal(auc, digits.to.keep = 3),
-         title = paste0('AUC (method: ', method, ')'), col = 'blue', pch = 19)
-  grid()
-  abline(a = 0, b = 1, col = 'lightgray', lty = 2) # y=bx+a
-}
-
-plotly.roc = function(roc.stats, auc, method) {
+plotly_roc = function(roc_stats, auc, method) {
   # find optimal cutoffs
-  max.youden.index = roc.stats %>%
+  max.youden.index = roc_stats %>%
     filter(YoudenIndex == max(YoudenIndex))
-  min.dist.from.0.1 = roc.stats %>%
+  min.dist.from.0.1 = roc_stats %>%
     filter(distFrom0.1 == min(distFrom0.1))
 
   chance.line = rbind.data.frame(c(0,0), c(1,1)) # y = x
   colnames(chance.line) = c('x', 'y')
 
-  plot_ly(height = 430, width = 500) %>%
+  plot_ly(height = 500, width = 550) %>%
     config(displayModeBar = FALSE) %>%
     layout(title = 'ROC curve', showlegend = FALSE,
            xaxis = list(title = 'False Positive Rate (FPR)'),
@@ -161,9 +140,9 @@ plotly.roc = function(roc.stats, auc, method) {
                     ax = 0, ay = -60, showarrow = TRUE,
                     text = 'Min distance from (0,1)',
                     font = list(color = 'purple')) %>%
-    add_trace(data = roc.stats, x = ~FPR, y = ~TPR, name = '',
+    add_trace(data = roc_stats, x = ~FPR, y = ~TPR, name = '',
               text = paste0('Threshold: ', specify_decimal(
-                roc.stats$threshold, digits.to.keep = 5)),
+                roc_stats$threshold, digits.to.keep = 5)),
               color = I('blue'), type = 'scatter', mode = 'lines+markers') %>%
     add_trace(data = chance.line, x = ~x, y = ~y, type = 'scatter', mode = 'lines',
               line = list(color = 'lightgrey', width = 2, dash = 'dot'))
