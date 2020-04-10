@@ -1,25 +1,3 @@
-library(dplyr) # 0.8.0.1
-
-# load observed synergies file
-get.observed.synergies = function(observed.synergies.file) {
-  lines = readLines(observed.synergies.file)
-  observed.synergies = gsub('~', '-', lines)
-  return(observed.synergies)
-}
-
-# load ensemble-wise synergy file(s)
-read.ensemble.synergies.drame.file = function(ensemble.file) {
-  res = NULL
-  if (!is.null(ensemble.file)) {
-    res = read.table(file = ensemble.file, sep = '\t', header = FALSE, skip = 1,
-                     col.names = c('perturbation', 'score'),
-                     stringsAsFactors = FALSE)
-    res$perturbation = gsub('\\[|\\]', '', res$perturbation)
-  }
-
-  return(res)
-}
-
 data.validation = function(orig.res = NULL, rand.res = NULL, observed.synergies) {
   if (!is.null(orig.res) & !(is.null(rand.res)))
     check.perturbations(orig.res$perturbation, rand.res$perturbation)
@@ -47,26 +25,26 @@ method.check = function(method, predictions) {
      stop('method selected not compatible with predictions data')
 }
 
-create.predictions.data.frame =
-  function(orig.res = NULL, rand.res = NULL, observed.synergies) {
+create_predictions_df =
+  function(orig_res = NULL, rand_res = NULL, observed_synergies) {
     predictions = NULL
-    if (is.null(rand.res) & !is.null(orig.res)) {
-      perturbations = orig.res$perturbation
-      observed = sapply(perturbations %in% observed.synergies, as.numeric)
-      predictions = cbind.data.frame(perturbations, observed, orig.res$score,
+    if (is.null(rand_res) & !is.null(orig_res)) {
+      perturbations = orig_res$perturbation
+      observed = sapply(perturbations %in% observed_synergies, as.numeric)
+      predictions = cbind.data.frame(perturbations, observed, orig_res$score,
                                      stringsAsFactors = FALSE)
       colnames(predictions) = c('perturbation', 'observed', 'original')
-    } else if (is.null(orig.res) & !is.null(rand.res)) {
-      perturbations = rand.res$perturbation
-      observed = sapply(perturbations %in% observed.synergies, as.numeric)
-      predictions = cbind.data.frame(perturbations, observed, rand.res$score,
+    } else if (is.null(orig_res) & !is.null(rand_res)) {
+      perturbations = rand_res$perturbation
+      observed = sapply(perturbations %in% observed_synergies, as.numeric)
+      predictions = cbind.data.frame(perturbations, observed, rand_res$score,
                                      stringsAsFactors = FALSE)
       colnames(predictions) = c('perturbation', 'observed', 'random')
-    } else if (!is.null(orig.res) & !is.null(rand.res)) { # we have 2 drabme files
-      perturbations = orig.res$perturbation
-      observed = sapply(perturbations %in% observed.synergies, as.numeric)
-      predictions = cbind.data.frame(perturbations, observed, orig.res$score,
-                                     rand.res$score, stringsAsFactors = FALSE)
+    } else if (!is.null(orig_res) & !is.null(rand_res)) { # we have 2 drabme files
+      perturbations = orig_res$perturbation
+      observed = sapply(perturbations %in% observed_synergies, as.numeric)
+      predictions = cbind.data.frame(perturbations, observed, orig_res$score,
+                                     rand_res$score, stringsAsFactors = FALSE)
       colnames(predictions) = c('perturbation', 'observed', 'original', 'random')
     }
     return(predictions)
@@ -143,16 +121,11 @@ gen.roc.stats = function(predictions, method.column) {
   return(roc_stats)
 }
 
-# `digits.to.keep` refers to digits after decimal point '.'
-specify.decimal = function(number, digits.to.keep) {
-  trimws(format(round(number, digits.to.keep), nsmall = digits.to.keep))
-}
-
 plot.roc = function(x, y, auc, method) {
   plot(x, y, type = 'b', col = 'blue',
        main = 'ROC curve', xlab = 'False Positive Rate (FPR)',
        ylab = 'True Positive Rate (TPR)')
-  legend('bottomright', legend = specify.decimal(auc, digits.to.keep = 3),
+  legend('bottomright', legend = specify_decimal(auc, digits.to.keep = 3),
          title = paste0('AUC (method: ', method, ')'), col = 'blue', pch = 19)
   grid()
   abline(a = 0, b = 1, col = 'lightgray', lty = 2) # y=bx+a
@@ -175,7 +148,7 @@ plotly.roc = function(roc.stats, auc, method) {
            yaxis = list(title = 'True Positive Rate (TPR)'),
            margin = list(l = 50, r = 50, b = 30, t = 50, pad = 4)) %>%
     add_annotations(x = 0.8, y = 0.25, showarrow = FALSE,
-                    text = paste0('AUC: ', specify.decimal(auc, digits.to.keep = 3)),
+                    text = paste0('AUC: ', specify_decimal(auc, digits.to.keep = 3)),
                     font = list(color = 'blue', size = 18)) %>%
     add_annotations(x = 0.75, y = 0.15, showarrow = FALSE,
                     text = paste0('Method: ', method),
@@ -189,7 +162,7 @@ plotly.roc = function(roc.stats, auc, method) {
                     text = 'Min distance from (0,1)',
                     font = list(color = 'purple')) %>%
     add_trace(data = roc.stats, x = ~FPR, y = ~TPR, name = '',
-              text = paste0('Threshold: ', specify.decimal(
+              text = paste0('Threshold: ', specify_decimal(
                 roc.stats$threshold, digits.to.keep = 5)),
               color = I('blue'), type = 'scatter', mode = 'lines+markers') %>%
     add_trace(data = chance.line, x = ~x, y = ~y, type = 'scatter', mode = 'lines',
