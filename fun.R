@@ -59,6 +59,9 @@ gen_roc_stats = function(predictions, method) {
     index = index + 1
   }
 
+  # get the (1,1) point in the ROC curve!
+  stats[[index]] = c(thres + 0.001, get_conf_mat_for_thres(predictions, method, thres + 0.001))
+
   roc_stats = as.data.frame(do.call(rbind, stats))
   colnames(roc_stats)[1] = 'threshold'
 
@@ -78,7 +81,6 @@ get_conf_mat_for_thres = function(predictions, method, thres.value) {
     value = predictions[i, method]
     obs   = predictions[i, 'observed']
     if (value < thres.value & obs == 1) {
-      # print(paste0('Value: ', value))
       tp = tp + 1
     } else if (value < thres.value & obs == 0) {
       fp = fp + 1
