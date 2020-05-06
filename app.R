@@ -50,22 +50,22 @@ plotly_roc = function(roc_stats, AUC, method) {
 # adds 2 further columns to the `predictions` data.frame
 # 2 linear combinations of biomarkers (+,-)
 combine_biomarkers = function(predictions) {
-  if(all(c('original', 'random') %in% colnames(predictions))) {
-    predictions = mutate(predictions, 'original+random' = original + random)
-    predictions = mutate(predictions, 'original-random' = original - random)
+  if(all(c('predictor1', 'predictor2') %in% colnames(predictions))) {
+    predictions = mutate(predictions, 'predictor1+predictor2' = predictor1 + predictor2)
+    predictions = mutate(predictions, 'predictor1-predictor2' = predictor1 - predictor2)
   }
   return(predictions)
 }
 
-validate_input = function(orig_res = NULL, rand_res = NULL, observed.synergies) {
-  if (!is.null(orig_res) & !(is.null(rand_res)))
-    check_perturbations(orig_res$perturbation, rand_res$perturbation)
+validate_input = function(first_ew_res = NULL, second_ew_res = NULL, observed.synergies) {
+  if (!is.null(first_ew_res) & !(is.null(second_ew_res)))
+    check_perturbations(first_ew_res$perturbation, second_ew_res$perturbation)
 
   # check that the observed synergies are all part of the perturbations tested
-  if (!is.null(orig_res))
-    stopifnot(all(observed.synergies %in% orig_res$perturbation))
-  if (!is.null(rand_res))
-    stopifnot(all(observed.synergies %in% rand_res$perturbation))
+  if (!is.null(first_ew_res))
+    stopifnot(all(observed.synergies %in% first_ew_res$perturbation))
+  if (!is.null(second_ew_res))
+    stopifnot(all(observed.synergies %in% second_ew_res$perturbation))
 }
 
 # checks that the same perturbations were tested in the
@@ -74,26 +74,26 @@ check_perturbations = function(perturbations.orig, perturbations.rand) {
   stopifnot(all(perturbations.orig == perturbations.rand))
 }
 
-create_predictions_tbl = function(orig_res = NULL, rand_res = NULL, observed_synergies) {
+create_predictions_tbl = function(first_ew_res = NULL, second_ew_res = NULL, observed_synergies) {
   predictions = NULL
-  if (is.null(rand_res) & !is.null(orig_res)) {
-    perturbations = orig_res$perturbation
+  if (is.null(second_ew_res) & !is.null(first_ew_res)) {
+    perturbations = first_ew_res$perturbation
     observed = sapply(perturbations %in% observed_synergies, as.numeric)
-    predictions = as_tibble(cbind.data.frame(perturbations, observed, orig_res$score,
+    predictions = as_tibble(cbind.data.frame(perturbations, observed, first_ew_res$score,
       stringsAsFactors = FALSE))
-    colnames(predictions) = c('perturbation', 'observed', 'original')
-  } else if (is.null(orig_res) & !is.null(rand_res)) {
-    perturbations = rand_res$perturbation
+    colnames(predictions) = c('perturbation', 'observed', 'predictor1')
+  } else if (is.null(first_ew_res) & !is.null(second_ew_res)) {
+    perturbations = second_ew_res$perturbation
     observed = sapply(perturbations %in% observed_synergies, as.numeric)
-    predictions = as_tibble(cbind.data.frame(perturbations, observed, rand_res$score,
+    predictions = as_tibble(cbind.data.frame(perturbations, observed, second_ew_res$score,
       stringsAsFactors = FALSE))
-    colnames(predictions) = c('perturbation', 'observed', 'random')
-  } else if (!is.null(orig_res) & !is.null(rand_res)) { # we have 2 drabme files
-    perturbations = orig_res$perturbation
+    colnames(predictions) = c('perturbation', 'observed', 'predictor2')
+  } else if (!is.null(first_ew_res) & !is.null(second_ew_res)) { # we have 2 ensemble synergies drabme files
+    perturbations = first_ew_res$perturbation
     observed = sapply(perturbations %in% observed_synergies, as.numeric)
-    predictions = as_tibble(cbind.data.frame(perturbations, observed, orig_res$score,
-      rand_res$score, stringsAsFactors = FALSE))
-    colnames(predictions) = c('perturbation', 'observed', 'original', 'random')
+    predictions = as_tibble(cbind.data.frame(perturbations, observed, first_ew_res$score,
+      second_ew_res$score, stringsAsFactors = FALSE))
+    colnames(predictions) = c('perturbation', 'observed', 'predictor1', 'predictor2')
   }
   return(predictions)
 }
@@ -102,16 +102,16 @@ create_predictions_tbl = function(orig_res = NULL, rand_res = NULL, observed_syn
 ### Load example data ###
 #########################
 input_dir = paste0(getwd(), '/examples')
-original_file = paste0(input_dir, '/ensemble_synergies')
-random_file = paste0(input_dir, '/ensemble_synergies_random')
+first_file = paste0(input_dir, '/ensemble_synergies')
+second_file = paste0(input_dir, '/ensemble_synergies_random')
 observed_synergies_file = paste0(input_dir, '/observed_synergies')
 
 observed_synergies = emba::get_observed_synergies(observed_synergies_file)
-orig_res = emba::get_synergy_scores(original_file)
-rand_res = emba::get_synergy_scores(random_file)
+first_ew_res = emba::get_synergy_scores(first_file) # ew = 'ensemble-wise'
+second_ew_res = emba::get_synergy_scores(second_file)
 
-validate_input(orig_res, rand_res, observed_synergies)
-predictions_example = create_predictions_tbl(orig_res, rand_res, observed_synergies)
+validate_input(first_ew_res, second_ew_res, observed_synergies)
+predictions_example = create_predictions_tbl(first_ew_res, second_ew_res, observed_synergies)
 
 ##########
 ### UI ###
@@ -124,13 +124,13 @@ ui = fluidPage(
     # Selecting files menu
     sidebarPanel(width = 4,
       selectInput(inputId = 'method', label = 'Select Output',
-                  choices = c('original', 'random', 'original-random',
-                              'original+random')),
+                  choices = c('predictor1', 'predictor2', 'predictor1-predictor2',
+                              'predictor1+predictor2')),
       fileInput(inputId = 'observed', label = 'Select Observed Synergies File',
                 buttonLabel = 'Browse...', placeholder = 'No file selected'),
-      fileInput(inputId = 'orig', label = 'Select Original Ensemble Synergies File',
+      fileInput(inputId = 'first_file', label = 'Select First Ensemble Synergies File',
                 buttonLabel = 'Browse...', placeholder = 'No file selected'),
-      fileInput(inputId = 'rand', label = 'Select Random Ensemble Synergies File',
+      fileInput(inputId = 'second_file', label = 'Select Second Ensemble Synergies File',
                 buttonLabel = 'Browse...', placeholder = 'No file selected'),
       htmlOutput(outputId = "message")
       ),
@@ -160,31 +160,31 @@ server = function(input, output) {
   get_data = reactive({
     method = input$method
     observed_synergies_file = input$observed$datapath
-    original_file = input$orig$datapath
-    random_file = input$rand$datapath
+    first_file = input$first_file$datapath
+    second_file = input$second_file$datapath
 
     print(paste0("Method: ", method))
     print(paste0("observed_synergies_file: ", observed_synergies_file))
-    print(paste0("original_file: ", original_file))
-    print(paste0("random_file: ", random_file))
+    print(paste0("first_ensemble_synergies_file: ", first_file))
+    print(paste0("second_ensemble_synergies_file: ", second_file))
 
     # which `predictions` object to use?
-    if (!is.null(observed_synergies_file) & (!is.null(original_file) | !is.null(random_file))) {
+    if (!is.null(observed_synergies_file) & (!is.null(first_file) | !is.null(second_file))) {
       observed_synergies = emba::get_observed_synergies(observed_synergies_file)
-      orig_res = NULL
-      rand_res = NULL
-      if (!is.null(original_file) & !is.null(random_file)) {
-        orig_res = emba::get_synergy_scores(original_file)
-        rand_res = emba::get_synergy_scores(random_file)
-      } else if (!is.null(original_file) & is.null(random_file)) {
-        orig_res = emba::get_synergy_scores(original_file)
-      } else if (is.null(original_file) & !is.null(random_file)) {
-        rand_res = emba::get_synergy_scores(random_file)
+      first_ew_res = NULL
+      second_ew_res = NULL
+      if (!is.null(first_file) & !is.null(second_file)) {
+        first_ew_res = emba::get_synergy_scores(first_file)
+        second_ew_res = emba::get_synergy_scores(second_file)
+      } else if (!is.null(first_file) & is.null(second_file)) {
+        first_ew_res = emba::get_synergy_scores(first_file)
+      } else if (is.null(first_file) & !is.null(second_file)) {
+        second_ew_res = emba::get_synergy_scores(second_file)
       }
 
-      validate_input(orig_res, rand_res, observed_synergies)
+      validate_input(first_ew_res, second_ew_res, observed_synergies)
       get_message("Using uploaded files")
-      predictions = create_predictions_tbl(orig_res, rand_res, observed_synergies)
+      predictions = create_predictions_tbl(first_ew_res, second_ew_res, observed_synergies)
     }
     else {
       # use example `predictions`
