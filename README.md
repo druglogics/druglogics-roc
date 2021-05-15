@@ -2,6 +2,12 @@
 
 A [Shiny](https://shiny.rstudio.com/) app that generates ROC and PR curves based on Drabme's [ensemble-wise synergy output](https://druglogics.github.io/druglogics-doc/drabme-install.html#drabme-output) results.
 
+## How it works
+
+The next figure shows how Drabme's synergy scores are translated to confusion matrix metrics that are sued to construct the ROC and PR curves:
+
+![](drabme_synergy_roc.png)
+
 ## Install
 
 The following libraries must be installed before using the app:
