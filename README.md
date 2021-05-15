@@ -4,7 +4,7 @@ A [Shiny](https://shiny.rstudio.com/) app that generates ROC and PR curves based
 
 ## How it works
 
-The next figure shows how Drabme's synergy scores are translated to confusion matrix metrics that are sued to construct the ROC and PR curves:
+The next figure shows how Drabme's synergy scores are translated to confusion matrix metrics that are used to construct the ROC and PR curves:
 
 ![](drabme_synergy_roc.png)
 
